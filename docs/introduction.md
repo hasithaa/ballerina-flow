@@ -69,7 +69,7 @@ Based on these options, we can take several approaches to define a workflow mode
 
 ### 1. Listener, Service, and Client Model
 
-[Read more about this approach here.](./models/1_service_listener_model.md)
+[Read more about this approach here.](./models/service_model/design.md)
 
 This approach models a workflow using familiar Ballerina abstractions.
 -   **Listener**: Represents the Workflow Engine.
@@ -85,7 +85,7 @@ This approach models a workflow using familiar Ballerina abstractions.
 
 ### 2. Functional Graph Model
 
-[Read more about this approach here.](./models/2_functional_grahp_model.md)
+[Read more about this approach here.](./models/graph_model/design.md)
 
 This approach defines the workflow as a graph of functions.
 -   **Node**: A function.
