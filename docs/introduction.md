@@ -26,6 +26,35 @@ The core features this POC aims to support are:
 -   **Workflow Engine**: A software component that executes and manages workflows based on their defined models. It handles the execution of nodes, transitions between them, and the overall state of the workflow.
 -   **Memory**: The **persistence store** used to save a workflow's state. This could be an in-memory store, an RDBMS, a cloud database, or a SaaS platform.
 
+## Design Rationale
+
+### Why Workflows Are Separate from Integration Services
+
+A key design goal is to allow workflow integrations to co-exist with normal integration services and remain independent of specific protocols or event sources within the Ballerina ecosystem. This design deliberately keeps workflows separate from regular Ballerina integration services (like HTTP services) for several fundamental reasons:
+
+**Protocol-Specific Semantics Conflict**: Regular integration services have their own inherent semantics that conflict with workflow requirements. For example:
+- In HTTP resource functions, a `return` statement implies sending a response back to the client
+- Receiving interrupting events from other protocols (like message queues) while inside an HTTP resource function would create overly complicated design patterns
+- Each protocol has its own lifecycle and error handling semantics that don't align with workflow state management
+
+**Interruptibility Requirements**: Workflows need the ability to pause execution and wait for external events, which requires:
+- Channels or queue-like mechanisms for event delivery
+- These mechanisms inherently cause Ballerina workers to suspend
+- Modeling this properly would require new language features and an interruptible execution runtime (potentially built on Java Loom)
+
+**Leveraging Existing Language Features**: Instead of introducing new language constructs, this design:
+- Uses existing Ballerina values and functions as the foundation
+- Implements workflow features as a platform capability on top of the existing Java runtime
+- Maintains compatibility with the current Ballerina ecosystem
+- Allows workflows to integrate seamlessly with existing integration services without modifying their semantics
+
+**Visual Modeling as a Core Requirement**: Workflows must support visual modeling alongside the three key technical features (persistence, interruptibility, and correlation). This requires:
+- A declarative structure that can be easily visualized
+- Clear separation between the visual model and the implementation logic
+- The ability to generate tooling and designers from the same model definition
+
+By keeping workflows as separate constructs that are interpreted by a dedicated engine, we achieve all key features while maintaining clean integration with existing Ballerina services and avoiding the need for new language features.
+
 ## Modeling a Workflow in Ballerina
 
 One of the key problems to solve is how to define a workflow model in Ballerina. There are a few options:
