@@ -1,0 +1,57 @@
+/*
+ *  Copyright (c) 2025, WSO2 LLC. (http://www.wso2.com)
+ *
+ *  WSO2 LLC. licenses this file to you under the Apache License,
+ *  Version 2.0 (the "License"); you may not use this file except
+ *  in compliance with the License.
+ *  You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ *  Unless required by applicable law or agreed to in writing,
+ *  software distributed under the License is distributed on an
+ *  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ *  KIND, either express or implied.  See the License for the
+ *  specific language governing permissions and limitations
+ *  under the License.
+ */
+
+plugins {
+    id 'io.ballerina.plugin'
+}
+
+description = 'Ballerina - Workflow Module'
+
+ballerina {
+    packageOrganization = "ballerina"
+    module = "workflow"
+    langVersion = ballerinaLangVersion
+    testCoverageParam = "--code-coverage --coverage-format=xml --includes=io.ballerina.workflow.*"
+    platform = "any"
+}
+
+// Create the missing tasks that the Ballerina plugin expects
+task commitTomlFiles {
+    // Empty task to satisfy the plugin
+}
+
+task updateTomlFiles {
+    doLast {
+        def ballerinaTomlFile = new File("$project.projectDir/Ballerina.toml")
+        def dependenciesTomlFile = new File("$project.projectDir/Dependencies.toml")
+        
+        if (ballerinaTomlFile.exists()) {
+            def content = ballerinaTomlFile.text
+            content = content.replace("@project.version@", project.version)
+            ballerinaTomlFile.text = content
+        }
+        
+        if (dependenciesTomlFile.exists()) {
+            def content = dependenciesTomlFile.text  
+            content = content.replace("@project.version@", project.version)
+            dependenciesTomlFile.text = content
+        }
+    }
+}
+
+build.dependsOn ":workflow-native:build"

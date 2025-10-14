@@ -18,19 +18,13 @@
 
 plugins {
     id 'java'
-    id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
-description = 'Ballerina - Workflow CLI Tool'
+description = 'Ballerina - Workflow Compiler Plugin Tests'
 
 dependencies {
-    implementation project(':workflow-core')
-    implementation "org.ballerinalang:ballerina-lang:${ballerinaLangVersion}"
-    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
-    implementation "info.picocli:picocli:4.7.5"
-    
-    annotationProcessor "info.picocli:picocli-codegen:4.7.5"
-    
+    testImplementation project(':workflow-compiler-plugin')
+    testImplementation "org.ballerinalang:ballerina-lang:${ballerinaLangVersion}"
     testImplementation 'org.testng:testng:7.8.0'
 }
 
@@ -40,11 +34,4 @@ java {
 
 test {
     useTestNG()
-}
-
-shadowJar {
-    archiveClassifier.set('')
-    manifest {
-        attributes 'Main-Class': 'io.ballerina.workflow.cli.WorkflowCli'
-    }
 }
