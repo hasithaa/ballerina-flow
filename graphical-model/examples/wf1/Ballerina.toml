@@ -1,0 +1,13 @@
+[package]
+org = "hasitha"
+name = "wf1"
+version = "0.1.0"
+distribution = "2201.12.10"
+
+[build-options]
+observabilityIncluded = true
+
+[[dependency]]
+org = "hasithaaravinda"
+name = "workflow"
+version = "0.1.0"

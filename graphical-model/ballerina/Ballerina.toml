@@ -1,8 +1,9 @@
 [package]
-org = "ballerina"
+org = "hasithaaravinda"
 name = "workflow"
-version = "@project.version@"
-distribution = "2201.10.0"
+version = "0.1.0"
+visibility="private"
+distribution = "2201.12.10"
 
 [build-options]
 observabilityIncluded = true
@@ -11,7 +12,7 @@ observabilityIncluded = true
 graalvmCompatible = true
 
 [[platform.java21.dependency]]
-path = "../native/build/libs/workflow-native-@project.version@.jar"
+path = "../native/build/libs/workflow-native-0.1.0-SNAPSHOT.jar"
 groupId = "io.ballerina.lib"
 artifactId = "workflow-native"
-version = "@project.version@"
+version = "0.1.0-SNAPSHOT"

@@ -19,6 +19,7 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
 }
 
 description = 'Ballerina - Workflow Native Module'
@@ -26,7 +27,6 @@ description = 'Ballerina - Workflow Native Module'
 dependencies {
     implementation "org.ballerinalang:ballerina-runtime:${ballerinaLangVersion}"
     implementation "org.ballerinalang:ballerina-lang:${ballerinaLangVersion}"
-    implementation "com.fasterxml.jackson.core:jackson-databind:${jacksonVersion}"
     
     testImplementation 'org.testng:testng:7.8.0'
     testImplementation "org.ballerinalang:ballerina-runtime:${ballerinaLangVersion}"
@@ -39,6 +39,15 @@ java {
 test {
     useTestNG()
 }
+
+shadowJar {
+    archiveClassifier.set('')
+    // Include all runtime dependencies
+    configurations = [project.configurations.runtimeClasspath]
+}
+
+// Make build depend on shadowJar
+build.dependsOn shadowJar
 
 publishing {
     publications {
