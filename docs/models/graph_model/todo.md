@@ -9,3 +9,12 @@ Simple solution.
  - Implementation is only for implementation.
  - No Variable concept, only node output types, and input only for Events
 
+
+Tasks. 
+
+- [ ] Create Schema for the model. 
+- [ ] Create a CLI tool to generate Ballerina code from the schema.
+- [ ] Create a Ballerina compiler plugin to validate the generated code.
+- [ ] Create a Java workflow engine to execute the workflow.
+
+- [ ] Mock persistence layer for the workflow engine.
