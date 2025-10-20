@@ -1,182 +1,329 @@
+Oct 13, 2025 Proposal
+
 # Introduction
 
-Ballerina Workflow Support is a proof-of-concept (POC) for a workflow engine implemented in Ballerina. It aims to provide a framework for defining, executing, and managing workflows in a structured manner.
+Ballerina Workflow Support is a proof of concept (POC) for a workflow engine implemented in Ballerina. It aims to provide a framework for defining, executing, and managing workflows in a structured manner.
 
 ## Key Features
 
 The core features this POC aims to support are:
--   **Persistence**: The ability to save the state of a running workflow and resume it later.
--   **Interruptibility**: The ability to pause a workflow to wait for an external event or trigger.
--   **Correlation**: The ability to map an external event to a specific, running workflow instance.
 
-> **Note**: Human tasks are not in the scope of this POC. However, they can be modeled as interruptible and correlated activities.
+- **Persistence**: The ability to save the state of a running workflow and resume it later.  
+- **Interruptibility**: The ability to pause a workflow to wait for an external event or trigger.  
+- **Correlation**: The ability to map an external event to a specific, running workflow instance.
+
+**Note**: Human tasks are not in the scope of this POC. However, they can be modeled as interruptible and correlated activities.
 
 ## Definitions
 
--   **Workflow Model**: Defines the structure and behavior of a workflow. This is typically graph-based (i.e., composed of nodes, edges, and gates).
--   **Workflow**: An executing instance of a workflow model. It represents the actual execution path taken, including the current state of all nodes and edges.
--   **Workflow Client (API)**: The public interface that external applications or services use to interact with the workflow engine or particular workflow model. It provides the necessary functions to manage the lifecycle of a workflow instance. Key responsibilities include:
-    * Starting a new workflow instance from a specific model.
-    * Sending events or messages to an active workflow to trigger interruptions or provide data.
-    * Querying the current status and state of a workflow instance.
-    * Terminating, pausing, or resuming a workflow.
--   **Node**: Represents a specific activity or task within a workflow. *(Note: A more suitable name that aligns with BI terminology should be considered.)*
--   **Edge**: Represents a transition or connection between two nodes in a workflow.
--   **Gate**: Represents a decision point in a workflow where the execution path can branch based on certain conditions. A gate could be modeled as part of an edge. However, gates are more complex and might be out of scope for this POC.
--   **Workflow Engine**: A software component that executes and manages workflows based on their defined models. It handles the execution of nodes, transitions between them, and the overall state of the workflow.
--   **Memory**: The **persistence store** used to save a workflow's state. This could be an in-memory store, an RDBMS, a cloud database, or a SaaS platform.
+- **Workflow Model**: Defines the structure and behavior of a workflow. This is typically graph-based (i.e., composed of nodes, edges, and gates).  
+- **Workflow**: An executing instance of a workflow model. It represents the actual execution paths (including subgraphs) taken, including the current state of all nodes and edges.  
+- **Workflow Client (API)**: The public interface that external applications or services use to interact with the workflow engine or particular workflow model. It provides the necessary functions to manage the lifecycle of a workflow instance. Key responsibilities include:  
+  * Starting a new workflow instance from a specific model.  
+  * Sending events or messages to an active workflow to trigger interruptions or provide data.  
+  * Querying the current status and state of a workflow instance.  
+  * Terminating, pausing, or resuming a workflow.  
+- **Workflow Engine**: A software component that executes and manages workflows based on their defined models. It handles the execution of nodes, transitions between them, and the overall state of the workflow.  
+- **Memory**: The **persistence store** used to save a workflow's state. This could be an in-memory store, an RDBMS, a cloud database, or a SaaS platform.
+
+(Note: The Following definitions are used only to explain the DX of some approaches.)
+
+- **Node (Activity)**: Represents a specific activity or task within a workflow. *(Note: A more suitable name that aligns with BI terminology should be considered.)*  
+- **Edge**: Represents a  ~~transition or connection~~ control flow dependency between two nodes in a workflow. This can be implicit or explicit.  
+- **Gate**: Represents a decision point in a workflow where the execution path can branch based on certain conditions. A gate could be modeled as part of an edge. However, gates are more complex and might be out of scope for this POC.
 
 ## Design Rationale
 
 ### Why Workflows Are Separate from Integration Services
 
-A key design goal is to allow workflow integrations to co-exist with normal integration services and remain independent of specific protocols or event sources within the Ballerina ecosystem. This design deliberately keeps workflows separate from regular Ballerina integration services (like HTTP services) for several fundamental reasons:
+A key design goal is to allow workflow integrations to co-exist with normal integration services and remain independent of specific protocols or event sources within the Ballerina ecosystem. 
+
+This design deliberately keeps workflows separate from regular Ballerina integration services (like HTTP services) for several reasons:
 
 **Protocol-Specific Semantics Conflict**: Regular integration services have their own inherent semantics that conflict with workflow requirements. For example:
-- In HTTP resource functions, a `return` statement implies sending a response back to the client
-- Receiving interrupting events from other protocols (like message queues) while inside an HTTP resource function would create overly complicated design patterns
-- Each protocol has its own lifecycle and error handling semantics that don't align with workflow state management
 
-**Interruptibility Requirements**: Workflows need the ability to pause execution and wait for external events, which requires:
-- Channels or queue-like mechanisms for event delivery
-- These mechanisms inherently cause Ballerina workers to suspend
+- In HTTP resource functions, a `return` statement implies sending a response back to the client  
+- Receiving interrupting events from other protocols (like message queues) while inside an HTTP resource function would create overly complicated design patterns  
+- Each protocol has its own lifecycle and error handling semantics that don't align with workflow state management, because replay/restore should be able to occur without any side effects. 
+
+**Interruptibility Requirements**: Workflows need the ability to pause execution and wait for external events i.e. the path that contains the receiving activity. Navigation along other paths of the flow continues.  This requires:
+
+- Channels or queue-like mechanisms for event delivery  
+- These mechanisms inherently cause Ballerina workers to suspend  
 - Modeling this properly would require new language features and an interruptible execution runtime (potentially built on Java Loom)
 
 **Leveraging Existing Language Features**: Instead of introducing new language constructs, this design:
-- Uses existing Ballerina values and functions as the foundation
-- Implements workflow features as a platform capability on top of the existing Java runtime
-- Maintains compatibility with the current Ballerina ecosystem
+
+- Uses existing Ballerina values and functions as the foundation  
+- Implements workflow features as a platform capability on top of the existing Java runtime  
+- Maintains compatibility with the current Ballerina ecosystem  
 - Allows workflows to integrate seamlessly with existing integration services without modifying their semantics
 
 **Visual Modeling as a Core Requirement**: Workflows must support visual modeling alongside the three key technical features (persistence, interruptibility, and correlation). This requires:
-- A declarative structure that can be easily visualized
-- Clear separation between the visual model and the implementation logic
+
+- A declarative structure that can be easily visualized  
+- Clear separation between the visual model and the implementation logic  
 - The ability to generate tooling and designers from the same model definition
 
-By keeping workflows as separate constructs that are interpreted by a dedicated engine, we achieve all key features while maintaining clean integration with existing Ballerina services and avoiding the need for new language features.
+## 
 
 ## Modeling a Workflow in Ballerina
 
-One of the key problems to solve is how to define a workflow model in Ballerina. There are a few options:
+There are three main approaches. 
 
-1.  Define a workflow model abstraction using **existing Ballerina constructs** (e.g., records, objects, functions, services, listeners, etc.).
-2.  Define a **DSL (Domain-Specific Language)** that can be converted to Ballerina constructs. This could be an external DSL (e.g., YAML, JSON) or an internal DSL (using Ballerina syntax).
-3.  Create **new language constructs** to represent workflow models. This is the most complex option, as it requires changes to the Ballerina language itself.
+1. Implement it as a pure library.  
+2. Utilize existing language features.  
+   1. Introduce DSL using existing language features (i.e. Persist tool)  
+   2. Fit into existing language concepts. (i.e., Listeners/Services)  
+3. Introduce new language features.
 
-Based on these options, we can take several approaches to define a workflow model in Ballerina.
+We will take a **hybrid approach**, combining a pure library with existing language features. **We are avoiding new language features (option 3\)** as this would require significant compiler effort.
+
+### Modeling
+
+Following the hybrid approach, the next key problem is workflow modeling. We have two main options:
+
+* M1: Implicit Model (Code-First)  
+  * The model is the code, and the code is the model. The workflow is defined implicitly using standard Ballerina code.  
+  * The model is implicit in the code. We can then use techniques (like algorithms used in WSO2 Integrator: BI) to parse this code and generate a low-code diagram from it.  
+  * This approach is more natural because it directly leverages Ballerina's native control flow semantics to define the workflow.  
+* M2: Explicit Model (Model-First)  
+  * You first define a "model skeleton" using explicit concepts like Edges and Nodes. Then, you implement the logic inside these stubs.  
+  * This simplify the modeling.   
+  * But, this introduces a new modeling concept to Ballerina, even though Ballerina's own control flow semantics are already natural for workflows.
+
+### Achieving Persistence, Interruptibility, and Correlation  
+
+### **Achieving Persistence, Interruptibility, and Correlation**
+
+We are considering two primary methods for persistence:
+
+* **P1: Snapshot**: Persist the complete workflow state or a selected scope as a snapshot. Then, reconstruct the state from the snapshot.  
+* **P2: Event Replay**: Save all events as they occur. Reconstruct the workflow's state by replaying this sequence of events.
+
+Both snapshotting (other than a full dump) and event replay work **if and only if** the core workflow logic is deterministic. This means the workflow logic itself cannot contain random number generation, currentTime() calls, external API calls, or system config lookups. These operations can still happen within activities (nodes), but **not inside** the core workflow logic.
+
+To manage long-running, interruptible processes, we considered two concepts:
+
+* **I1:** Utilize Ballerina **Client Semantics**  
+* **I2:** Use a new **"Channels"** like concept
+
+Since we have already decided not to introduce new language features, option **I2 (Channels) has been ruled out**. We are planning to utilize **I1 (Client Semantics)** to handle this.
+
+Let's see how we can handle events on both sides:
+
+* **Inside the workflow Logic:**  
+  * e.g., The workflow logic waits for events, such as timer events.  
+  * We can model this as a generic workflow functionality (like a library function) or as part of the language construct design (will be discussed in more detail later).  
+* **Sender:**  
+  * An external construct that interacts with the workflow. Typically, this is a Ballerina client (either generic or generated).  
+  * This requires correlation.  
+  * We have multiple implementation options for correlation:  
+    1. Take the **correlation ID** as a parameter in the client's remote/resource action signature.  
+    2. Provide the **correlation ID** to a factory or service to get the relevant client instance.  
+  * We are leaning towards the **first option**, as it is more direct and avoids an additional lookup step.
+
+## 
+
+## **Possible DX Options (Re-Ordered)**
+
+Here, Options 1-4 are **"Code-first,"** and Option 5 is **"Model-first."**
+
+### **1\. Workflow as a Library**
+
+**Idea**
+
+* The user defines workflow activities as functions (or lambda expressions). The execution flow is represented using a graph notation (nodes and edges), i.e., a JSON value (Agent graph-like model).  
+* This model is given to the workflow library for execution.  
+* **Persistence**: Snapshot  
+* **Events**:  
+  * **Sender**: We use a generic/generated client to send signals/events to the workflow.  
+  * **Workflow logic**: Use a workflow engine function.  
+* Additional variables will be shared using a property bag.
+
+**Development Effort**
+
+* The challenge is designing a proper API.  
+* Snapshotting is simple to implement because the persistence scope is well-defined at the function level.
+
+**Low-Code Experience**
+
+* Requires significant effort to build a low-code experience.
+
+**Pros**:
+
+* Gives the developer full programmatic control over the workflow definition.  
+* It can be used anywhere within Ballerina constructs.
+
+**Cons**:
+
+* Designing a clean and simple API is difficult due to Ballerina's limitations with generic function types, potentially leading to a complex developer experience with casts, etc.  
+* Building a low-code visualization is difficult.
+
+### **2\. Workflow as a Function**
+
+**Idea**
+
+* The workflow is a single Ballerina function. It may be annotated or use special function syntax.  
+* An activity will be a statement within the function.  
+* Control flow is defined using if/else and loops.  
+* Parallel execution paths are implemented via **Workers**.  
+* **Variables**: In-scope  
+* **Persistence**:  
+  * **Option 1 (Preferred)**: Persist events and reconstruct by replaying events.  
+  * **Option 2**: Persist at the statement level. This is conceptually difficult to implement, as it requires a runtime change.  
+* **Events**:  
+  * **Sender**: We use a generic/generated client to send signals/events to the workflow.  
+  * **Workflow logic**: Use a workflow engine function.
+
+**Development Effort**
+
+* The event-based persistence model and replay require moderate effort.  
+* Statement-level persistence is complex to implement.
+
+**Low-Code Experience**
+
+* Works with the existing **WSO2 Integrator: BI** flow control diagram, with additional workflow-related nodes in the RHS.
+
+**Pros**:
+
+* Simple and easy to visualize using existing WSO2 Integrator: BI control flow semantics.  
+* The entire logic is contained in one place.
+
+**Cons**:
+
+* Events are second-class citizens and require dynamic typing.  
+* Query and Update (forward recovery) semantics are not supported.  
+* Can we achieve deterministic code?  
+* Attaching to workflow engine semantics.
+
+### **2.b. Activities as Functions**
+
+To solve the determinism problem, we can externalize activities to functions, similar to Temporal. This means we need to use replay as the persistence model.
+
+However, the other disadvantages are not yet solved.
+
+### **3\. Worker-Based Model**
+
+The idea is to solve the persistence problem from Option 2\.
+
+**Idea**
+
+* Similar to **WSO2 Integrator: BI V1**. Define workflow activities using **Workers** (not at the statement level).  
+* Worker interactions define the workflow edges.  
+* **Variables**: In-scope  
+* **Persistence**: Replay  
+* **Events**:  
+  * **Sender**: We use a generic/generated client to send signals/events to the workflow.  
+  * **Workflow logic**: Use a workflow engine function.
+
+**Development Effort**
+
+* The event-based persistence model and replay require moderate effort.
+
+**Low-Code Experience**
+
+* Requires significant effort to build a low-code experience, as this deviates from the WSO2 Integrator: BI flow.
+
+**Pros**:
+
+* Fits well with Ballerina's concurrency features.
+
+**Cons**:
+
+* Static worker semantics break with the workflow client for receiving events.  
+* Leads to complex code, because to achieve workflow functions, you need to program the code in a specific way.  
+* Events are still second-class citizens and require dynamic typing.  
+* Query and Update (forward recovery) semantics are not supported.
+
+### **4\. Workflow as a (Service) Object**
+
+Another approach to solve the problems in Option 2.b (Similar to Temporal).
+
+**Idea**:
+
+* The workflow is a (service) **class**, where a remote/resource method represents the workflow model. Events will be other remote/resource methods in the object. This can support:  
+  * Main logic  
+  * Signal (Asynchronous events)  
+  * Query (Synchronous read-only)  
+  * Update (Synchronous read-write)  
+* The **listener** can be used as the workflow engine.  
+* **Persistence**: Replay  
+* **Events**:  
+  * **Sender**: We use a generic/generated client to send signals/events to the workflow.  
+  * **Workflow logic**: Use a workflow engine function.  
+* **Variables**: Service-level and in-scope.  
+* **Additional Activities**: Functions
+
+**Development**:
+
+* The event-based persistence model and replay require moderate effort.
+
+**Low-Code Experience**
+
+* Works with the existing **WSO2 Integrator: BI** flow control diagram, with additional workflow-related nodes in the RHS.  
+* Additionally, the Service designer will be used to model the workflow.
+
+**Pros**:
+
+* Works with existing Ballerina language constructs.  
+* Low-code effort is minimal.  
+* Fixes Option 2's problems.
+
+**Cons**:
+
+### **5\. Function Graph Model**
+
+This is an improvement on Option 1\. We use Ballerina tool support to hide the complexity of building the flow. This approach is inspired by the ballerina/persist tool. This is a **"Model-first"** approach.
+
+**Idea**:
+
+* The user defines a model using Ballerina constructs, specifying **nodes and edges**.  
+* The user uses a **Ballerina workflow tool** to generate the skeleton (an object type) \- similar to an OpenAPI skeleton \- and a **Client** to interact with the workflow.  
+* The user implements the class with the business logic.  
+* **Persistence**: Replay  
+* **Events**:  
+  * **Sender**: We use a generic/generated client to send signals/events to the workflow.  
+  * **Workflow logic**: Use a workflow engine function.
+
+**Development**:
+
+* The event-based persistence model and replay require moderate effort.
+
+**Low-Code Experience**
+
+* A new low-code view for the workflow.
+
+**Pros**:
+
+* The tool hides the workflow's boilerplate code from a defined model. The developer only needs to implement the custom business logic for each node (function).  
+* Can be extended to support BPMN activities, Agent Activities, and code templates.
+
+**Cons**:
+
+* Update and Query will be second-class citizens.
+
+## Summery
+
+### 
+
+| Criteria | 1\. As a Library | 2\. As a Function | 3\. Worker-Based | 4\. As a (Service) Object | 5\. Functional Graph Model |
+| :---- | :---- | :---- | :---- | :---- | :---- |
+| **Core Idea** | Graph (JSON) of nodes/edges passed to a library. | Single Ballerina function with standard control flow. | worker interactions define the workflow edges. | A **service class** where remote methods are workflow actions (run, signal, query). | A **tool generates** a skeleton class from a defined model (nodes/edges). |
+| **Modeling** | Code-first | Code-first | Code-first | Code-first | **Model-first** |
+| **Persistence** | Snapshot of the graph. | Replay | Replay | Replay | Replay |
+| **Low-Code Effort** | **High Effort** (New view) | **Low Effort** (Uses existing BI diagram) | **High Effort** (New view, deviates from BI) | **Minimal Effort** (Uses existing BI diagram \+ service designer) | **Medium Effort** (New view) |
+| **Pros** | Full programmatic control. | Simple, uses existing BI visualization. | Fits Ballerina concurrency. | Uses existing constructs; fixes Option 2's issues. | Tool hides boilerplate; extensible (BPMN, Agents). |
+| **Cons** | Hard to design API; hard to visualize. | Events are second-class; no Query/Update; determinism issues. | Complex code; static workers; events are second-class. |  | Update/Query are second-class. |
+| **Selected** | **No** | **No** | **No** | **Yes** | **Yes** |
 
 ---
 
-### 1. Listener, Service, and Client Model
+## Recommendation: 
 
-[Read more about this approach here.](./models/service_model/design.md)
+Based on the comparison, I am strongly leaning towards, 
 
-This approach models a workflow using familiar Ballerina abstractions.
--   **Listener**: Represents the Workflow Engine.
--   **Service and Remote Methods**: Represent the Workflow Model and its Nodes.
--   **Client**: Represents the Workflow Client
-
-**Feature Support:**
--   **Persistence Boundary**: At the remote method level.
--   **Interruptibility Boundary**: Achieved through client calls.
--   **Correlation**: Via client calls with correlation IDs.
-
----
-
-### 2. Functional Graph Model
-
-[Read more about this approach here.](./models/graph_model/design.md)
-
-This approach defines the workflow as a graph of functions.
--   **Node**: A function.
--   **Edge**: A record containing source and target nodes, with optional conditions.
--   **Client**: A workflow client to start and interact with a workflow.
-
-
-> Implementation Note: This approach is inspired by the `ballerina/persist` tool. A new Ballerina tool could be created to generate the workflow's boilerplate code from a defined model. The developer would only need to implement the custom business logic for each node (function) and provide a Memory store when creating the workflow client from the model. Additionally, we can model the Workflow model as objects with functions as methods.
-
-**Feature Support:**
--   **Persistence Boundary**: At the function boundary level.
--   **Interruptibility Boundary**: Achieved through client calls.
--   **Correlation**: Via client calls with correlation IDs.
-
----
-
-### 3. Worker-Based Model
-
-This approach uses Ballerina workers to model workflow components.
--   **Node**: A worker.
--   **Edge**: The interaction between workers.
-
-**Feature Support:**
--   **Persistence Boundary**: At the worker level.
--   **Interruptibility Boundary**: Only at the function boundary. Internal interruption of a worker is undefined. Since workers run inside a function, we cannot interrupt a running worker without a dedicated language-level construct.
--   **Correlation**: Static only. External correlation is undefined because worker interactions cannot be interrupted from the outside.
-
-> **Note**: This model is similar to the service and remote method-based approach. In Option 1, interruptibility and correlation occur at the function boundary, not at the individual worker boundary.
-
----
-
-### 4. Workflow as a Function
-
-This approach models the entire workflow as a single Ballerina function.
--   **Node**: A statement within the function.
--   **Edge**: Implicit, via the control flow of the function (e.g., `if/else`, loops).
--   **Worker**: Represents parallel execution paths within the function.
-
-**Feature Support:**
--   **Persistence Boundary**: At the statement level (conceptually difficult to implement).
--   **Interruptibility Boundary**: Only at the function boundary. We cannot interrupt running statements unless a language-level construct is introduced to support this.
--   **Correlation**: Static only. External correlation is undefined because individual statements cannot be interrupted.
-
-Got it. Here are the updated sections of the `readme.md` incorporating your new points.
-
----
-
-### 5. Workflow as a Library
-
-This approach provides a library that developers can use to programmatically construct and execute a workflow.
--   **Concept**: Similar to the Functional Graph Model, workflow steps are represented as functions or lambda functions. However, instead of using a code generator, the developer uses the library's API to wire these functions together into a coherent flow.
--   **Challenge**: A significant challenge is designing a proper API. Due to Ballerina's current limitations with generics, especially concerning function types, the resulting API could become complex and less intuitive for the developer.
-
----
-
-## Pros and Cons of Each Approach
-
-| Approach | Pros | Cons |
-| :--- | :--- | :--- |
-| **1. Listener, Service, and Client Model** | Leverages existing, well-understood Ballerina constructs. Good support for key features like persistence and interruptibility. | The overall workflow logic is distributed across multiple components, which can make the complete flow difficult to visualize directly from the code. |
-| **2. Functional Graph Model** | Highly flexible and decoupled. The graph structure is explicit and can be supported by code generation tools. Uses standard functions as the execution units. | The workflow model is separate from the implementation. This is a common and accepted trade-off, also seen in tools like OpenAPI, gRPC, and the Ballerina `persist` tool. |
-| **3. Worker-Based Model** | Provides an intuitive mapping for parallel activities using a core Ballerina concurrency feature. | Lacks support for internal interruption and external correlation with current language features. This leads to complex state graphs and requires a difficult implementation. |
-| **4. Workflow as a Function Model** | Simple and straightforward for linear, non-interruptible workflows. The entire logic is contained in one place. | Requires a complex implementation to support workflow features. Lacks support for internal interruption and external correlation without significant language changes. |
-| **5. Workflow as a Library** | Gives the developer full programmatic control over the workflow definition. High degree of flexibility. | Designing a clean and simple API is difficult due to Ballerina's limitations with generic function types, potentially leading to a complex developer experience. |
-
----
-
-## The Pro-Code vs. Low-Code Balance
-
-Workflows are traditionally geared towards a low-code or no-code experience. The primary goal is to **model the flow of logic visually**, making it accessible to business analysts and integration specialists, not just hardcore programmers.
-
-However, the power of Ballerina lies in its robust pro-code capabilities. Therefore, finding the right balance between a declarative, low-code modeling experience and a powerful, pro-code implementation experience is **essential** for a successful Ballerina workflow programming model. The ideal solution should allow the **flow** to be defined simply (low-code) while the complex **logic** of each step is implemented with the full power of Ballerina (pro-code).
-
----
-
-### Comparison of Modeling Approaches
-
-Here’s how each of the five options stacks up in achieving this balance.
-
-| Approach | Pro-Code Experience | Low-Code Experience | Verdict and Notes |
-| :--- | :--- | :--- | :--- |
-| **1. Listener & Service Model** | **Strong**. Developers write services and remote methods, with the compiler assisting in client generation. Interactions are syntactically visible in the code. But This requires writing the program in a specific way to be recognized as a workflow, a pattern common in service architectures.| **Good**. A visual flow can be derived from the code's structure and syntactic elements. | A **balanced approach** that would rely heavily on the compiler and on-the-fly code generation tools to create the visual representation. |
-| **2. Functional Graph Model** | **Strong**. Developers use standard Ballerina to define the model in a declarative way and write standard functions to implement the node logic. | **Strong**. The workflow is an explicit, declarative graph. Individual functions can also be visualized using control flow diagrams, a feature already supported in WSO2 Integrator: BI. | ✅ **Excellent Balance**. This approach cleanly separates the *what* (the visual flow) from the *how* (the function's code). |
-| **3. Worker-Based Model** | **Difficult**. This model requires a very specific and rigid coding pattern. The flow logic and implementation are tightly coupled. | **Potentially Strong**. It uses worker interactions. With future language features (e.g., channels), it might achieve "code parity" with a visual model. | **Omitted**. This approach is dependent on future language features to be viable. |
-| **4. Workflow as a Function** | **Strong**. The entire workflow is the control flow (if/else, loops) of a single Ballerina function. | **Potentially Strong**. The function's internal logic can be visualized with existing control flow diagrams in BI. | **Omitted**. Dependent on significant new language features for persistence and interruption. |
-| **5. Workflow as a Library** | **Strong**. Developers use a programmatic API to imperatively build the workflow. The entire model is constructed via code. | **Weak**. There is no declarative model for a low-code tool to easily interpret or modify. | **Omitted**. The API design is severely hampered by current language limitations. |
-
----
-
-## Recommendation: The Functional Graph Model
-
-Based on the comparison, I am strongly leaning towards **Option 2: The Functional Graph Model**.
+* Option 4: Workflow as a (Service) Object  
+* Option 5: The Functional Graph Model.
 
 This approach provides the clearest and most effective balance between the pro-code and low-code worlds.
