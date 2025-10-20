@@ -16,6 +16,20 @@
 
 import ballerina/jballerina.java;
 
+# Memory provider interface for workflow persistence
+public type MemoryProvider object {
+    // Methods for storing and retrieving workflow state
+};
+
+# In-memory provider implementation
+public class InMemoryProvider {
+    *MemoryProvider;
+    
+    public function init() {
+        // Initialize in-memory storage
+    }
+};
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////
 // Workflow Execution Context
 /////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -30,9 +44,7 @@ import ballerina/jballerina.java;
 public type WorkflowContext record {|
     string id;
     string model;
-    readonly map<anydata> inputs;
     readonly map<anydata> results;
-    map<anydata> variables;
 |};
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////

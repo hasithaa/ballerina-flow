@@ -93,7 +93,6 @@ final workflow:Node sendEmail = {
     kind: "Activity",
     template: "callFunction",
     description: "Send email notification",
-    ref: commons:sendEmail // Reference to an existing function
 };
 
 

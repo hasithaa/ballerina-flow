@@ -69,37 +69,6 @@ graphical-model/
 └── gradlew               # Gradle wrapper
 ```
 
-## Usage
-
-### Using the Ballerina Module
-
-```ballerina
-import ballerina/workflow;
-
-public function main() returns error? {
-    WorkflowGraph graph = {
-        id: "sample-workflow",
-        name: "Sample Workflow",
-        nodes: [],
-        connections: []
-    };
-    
-    boolean isValid = check workflow:validateWorkflow(graph);
-    if (isValid) {
-        anydata result = check workflow:executeWorkflow(graph);
-    }
-}
-```
-
-### Using the CLI Tool
-
-```bash
-# Generate Ballerina code from workflow schema
-java -jar cli-workflow/build/libs/cli-workflow-0.1.0-SNAPSHOT.jar \
-    workflow-schema.json \
-    --output ./generated \
-    --package myworkflow
-```
 
 ## Note
 

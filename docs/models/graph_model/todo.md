@@ -12,9 +12,17 @@ Simple solution.
 
 Tasks. 
 
-- [ ] Create Schema for the model. 
+- [x] Create Schema for the model. 
 - [ ] Create a CLI tool to generate Ballerina code from the schema.
 - [ ] Create a Ballerina compiler plugin to validate the generated code.
 - [ ] Create a Java workflow engine to execute the workflow.
 
 - [ ] Mock persistence layer for the workflow engine.
+
+
+
+- [ ] Code generation for need to support multiple workflows in the same project. (change workflow.bal to be per workflow)
+
+
+Need to fix following. 
+- No annotation is required. 
