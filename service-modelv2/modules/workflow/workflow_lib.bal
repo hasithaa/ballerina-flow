@@ -90,8 +90,4 @@ public isolated class WorkflowEngineClient {
         return error("Not implemented");
     }
 
-    public isolated function getState(Execution execution) returns map<anydata>|error {
-        return error("Not implemented");
-    }
-
 }

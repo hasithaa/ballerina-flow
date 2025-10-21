@@ -52,14 +52,4 @@ public isolated client class OrderWorkflowClient {
         }
         return self.cl.stop(execution);
     }
-
-    // We can make this exact type. 
-    public isolated function getState(string orderId) returns map<anydata>|error {
-        workflow:Execution? execution = check self.search(orderId);
-        if execution is () {
-            return error("No active workflow found for orderId: " + orderId);
-        }
-        // We can do Additional data binding.
-        return self.cl.getState(execution).cloneReadOnly();
-    }
 }
