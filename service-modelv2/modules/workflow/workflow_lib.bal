@@ -8,8 +8,6 @@ public annotation Query on service remote function;
 
 public annotation Update on service remote function;
 
-public annotation State on object field;
-
 public annotation Correlation on parameter;
 
 public isolated class WorkflowEngine {

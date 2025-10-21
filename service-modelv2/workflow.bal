@@ -11,8 +11,6 @@ service "OrderWorkflow" on workflowEngine {
     private string[] items = [];
     private boolean isApproved = false;
     private boolean isRejected = false;
-
-    @workflow:State
     private string status = "PENDING_PAYMENT";
 
     @workflow:StartEvent
